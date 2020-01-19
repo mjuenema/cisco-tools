@@ -12,6 +12,6 @@ Various scripts for working with Cisco network devices
 
 ## ciscoaclparse
 
-* **ciscoacldict** parses the output of the ``show access-lists`` command into nested Python dictionaries.
+* **ciscoacldict** parses the output of the ``show access-lists`` command into list of Python dictionaries.
 
 >> Description goes here.
