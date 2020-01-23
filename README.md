@@ -38,7 +38,9 @@ interface FastEthernet 1/1
 Running **ciscoconfexit** will insert ``exit`` statements where required.
 
 ```
-$ ciscoconfexit input.cfg
+$ ciscoconfexit input.cfg > output.cfg
+
+$ cat output.cfg
 ! output.cfg
 interface FastEthernet 1/1
   description Internet
