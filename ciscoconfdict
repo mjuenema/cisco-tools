@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+
+"""Convert Cisco configuration into nested Python dictionary.
+
+   In some situations this may be a simple alternative to the 
+   ciscoconfparse (https://pypi.org/project/ciscoconfparse/) library
+   by David Michael Pennington. In others, it may not!!!
+
+   The following example has been taken from the ciscoconfparse Tutorial
+   (http://www.pennington.net/py/ciscoconfparse/tutorial_parent_child.html).
+   
+     ----------------------------------
+     policy-map QOS_1
+      class GOLD
+       priority percent 10
+      class SILVER
+       bandwidth 30
+       random-detect
+      class default
+     ----------------------------------
+
+   ciscoconfdict converts this into a nested Python dictionary.
+
+     ----------------------------------
+     {'policy-map': {'QOS_1': {'class': {'GOLD': {'priority': {'percent': {'10': {}}}},
+                                      'SILVER': {'bandwidth': {'30': {}},
+                                                 'random-detect': {}},
+                                      'default': {}}}}}
+     ----------------------------------
+
+   Simple queries are now possible with Python's dictionary methods:, e.g.
+
+     ----------------------------------
+     assert 'policy-map' in config
+     ----------------------------------
+
+"""
+
+
+import sys
+
+def process(fp):
+
+    def parse(data, tokens):
+        if tokens == []:
+            return data
+
+        token = tokens.pop(0)
+
+        if not token in data:
+            data[token] = {}
+
+        data[token] = parse(data[token], tokens)
+    
+        return data
+
+
+    def skip_banner(fp, separator):
+       # Read over Cisco banner
+       while True:
+           line = fp.readline()
+           if separator in line:
+               break
+
+    contexts = {}
+    lines = []
+    data = {}
+
+    with open(sys.argv[1], 'rt') as fp:
+        for this_line in fp:
+    
+            this_line = this_line.rstrip()
+    
+            if '!' in this_line:
+                continue
+    
+            if this_line.startswith('banner'):
+                separator = this_line.split()[-1]
+                skip_banner(fp, separator)
+                continue
+
+            if this_line.startswith('end'):
+                continue
+
+            this_indent = len(this_line)-len(this_line.strip(' '))
+    
+            contexts[this_indent] = this_line
+    
+            prefixes = [contexts[i] for i in range(0,this_indent)]
+            line = ' '.join(prefixes + [this_line])
+
+    
+            tokens = line.strip().split()
+            data = parse(data, tokens)
+
+    return data
+
+
+if __name__ == '__main__':
+    import json
+    import pprint
+    pprint.pprint(process(sys.argv[1]))
+#    print(json.dumps(process(sys.argv[1]), indent=2))
