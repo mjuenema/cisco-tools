@@ -2,6 +2,8 @@
 
 **ciscoconfexit** inserts ``exit`` statements into a Cisco configuration so one can copy-and-paste it.
 
+There are currently two open issues #1 and #2.
+
 Example:
 
 ```
@@ -34,3 +36,4 @@ interface FastEthernet 1/1
   exit
 !
 ```
+
