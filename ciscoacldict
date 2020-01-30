@@ -1,119 +1,296 @@
 #!/usr/bin/env python
 
+"""
+
+
+    access-list 
+      access_list_name 
+      [line line_number] 
+      extended 
+      {deny | permit} 
+      protocol_argument 
+      source_address_argument 
+      dest_address_argument 
+      [log [[level] [interval secs] | disable | default]]
+      [time-range time_range_name]
+      [inactive] 
+
+"""
 
 DEBUG = False
 
 import sys
+import socket
 import ipaddress
+import pprint
 
-import pyparsing as pp
+# Import different versions on PyParsing depending
+# on the second command line argument.
+try:
+    import cPyparsing as pp
+except ImportError:
+    import pyparsing as pp
 pp.ParserElement.enablePackrat()
+
+## Names to number tables for TCP/UDP ports and protocols like (icmp, IP, TCP, UPD).
+## Only names that cannot be resolved through `getservbyname()` listed here.
+## https://community.cisco.com/t5/firewalls/cisco-asa-acl-built-in-port-name-to-number-mapping/td-p/1709769
+#NAME2NUMBER = {
+#  'aol': 5120,
+#  'bgp': 179,
+#  'chargen': 19,
+#  'cifs': 3020,
+#  'citrix-ica': 1494,
+#  'cmd': 514,
+#  'ctiqbe': 2748,
+#  'daytime': 13,
+#  'discard': 9,
+#  'domain': 53,
+#  'echo': 7,
+#  'exec': 512,
+#  'finger': 79,
+#  'ftp': 21,
+#  'ftp-data': 20,
+#  'gopher': 70,
+#  'h323': 1720,
+#  'hostname': 101,
+#  'http': 80,
+#  'https': 443,
+#  'ident': 113,
+#  'imap4': 143,
+#  'irc': 194,
+#  'kerberos': 88,
+#  'klogin': 543,
+#  'kshell': 544,
+#  'ldap': 389,
+#  'ldaps': 636,
+#  'login': 513,
+#  'lotusnotes': 1352,
+#  'lpd': 515,
+#  'netbios-ssn': 139,
+#  'nfs': 2049,
+#  'nntp': 119,
+#  'pcanywhere-data': 5631,
+#  'pim-auto-rp': 496,
+#  'pop2': 109,
+#  'pop3': 110,
+#  'pptp': 1723,
+#  'rsh': 514,
+#  'rtsp': 554,
+#  'sip': 5060,
+#  'smtp': 25,
+#  'sqlnet': 1522,
+#  'ssh': 22,
+#  'sunrpc': 111,
+#  'tacacs': 49,
+#  'talk': 517,
+#  'telnet': 23,
+#  'uucp': 540,
+#  'whois': 43,
+#  'www': 80
+#}
+
+
+#def _name_to_number(name):
+#    try:
+#        return int(name)
+#    except ValueError:
+#        # Not an integer
+#        return socket.getservbyname(name)
+
+
+#class IPv4Range(object):
+#    def __init__(self, start, end):
+#        self.start = ipaddress.IPv4Address(start)
+#        self.end = ipaddress.IPv4Address(end)
+#
+#    def __contains__(self, other):
+#        return (other >= self.start) and (other <= self.end)
+#
+#    __eq__ = __contains__
+#
+#    def __repr__(self):
+#        return "IPv4Range('{}','{}')".format(self.start, self.end)
+
+
+def _address_action(t): 
+    """Parse action to normalise address tokens.
+
+         ['host', '172.16.37.207']
+         ['172.19.130.0', '255.255.255.0']
+         ['range', '10.1.2.21', '10.1.2.23']
+         ['any']
+         ['any4']
+         ['object','NAME']
+
+    """
+
+    if t[0] == 'host':
+        return {'type': 'host', 'host': t[1]}
+    elif t[0] == 'range':
+        return {'type': 'range', 'start': t[1], 'end': t[2]}
+    elif t[0] == 'any':
+        return {'type': 'network', 'network': '0.0.0.0/0'}
+    elif t[0] == 'any4':
+        return {'type': 'network', 'network': '0.0.0.0/0'}
+    elif t[0] == 'object':
+        return {'type': 'object', 'object': t[1]}
+    else:
+        return {'type': 'network', 'network': ipaddress.IPv4Network('{}/{}'.format(t[0], t[1])).exploded}
+
+#def _protocol_action(t):
+#    """Convert protocol list to string."""
+#    return t[0]
+
+#def _convert_to_int(t):
+#    return int(t[0])
+#_hitcnt_action = _line_number_action = _convert_to_int
+
+
+def convert(value, fn=int, efn=str):
+    try:
+        return fn(value)
+    except Exception:
+        if efn:
+            return efn(value)
+        else:
+            raise
+
+
+def _port_action(t):
+    # ['eq', 'bootps']
+    # ['object', 'Obj_ConnectEast_OMCS']
+
+    if t[0] == 'eq':
+        return {'type': 'port', 'port': convert(t[1], socket.getservbyname, int)}
+    elif t[0] == 'gt':
+        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int)+1, 'end': 65535}
+    elif t[0] == 'lt':
+        return {'type': 'range', 'start': 1, 'end': convert(t[1], socket.getservbyname, int)-1}
+    elif t[0] == 'neq':
+        raise NotImplemmentedError(str(t))
+    elif t[0] == 'range':
+        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int), 'end': convert(t[2], socket.getservbyname, int)}
+    elif t[0] == 'object':
+        return {'type': 'object', 'object': convert(t[1], socket.getservbyname, int)}
+    else:
+        raise NotImplemmentedError(str(t))
 
 
 class Parser():
+
 
     def __init__(self):
 
         # Keywords
         #
-        k_access_list = pp.Keyword('access-list').setDebug(DEBUG)
-        k_any4 = pp.Keyword('any4').setDebug(DEBUG)
-        k_any6 = pp.Keyword('any6').setDebug(DEBUG)
-        k_any = pp.Keyword('any').setDebug(DEBUG)
-        k_deny = pp.Keyword('deny').setDebug(DEBUG)
-        k_eq = pp.Keyword('eq').setDebug(DEBUG)
-        k_extended = pp.Keyword('extended').setDebug(DEBUG)
-        k_gt = pp.Keyword('gt').setDebug(DEBUG)
-        k_hitcnt = pp.Keyword('hitcnt').setDebug(DEBUG)
-        k_host = pp.Keyword('host').setDebug(DEBUG)
-        k_icmp = pp.Keyword('icmp').setDebug(DEBUG)
-        k_interval = pp.Keyword('interval').setDebug(DEBUG)
-        k_ip = pp.Keyword('ip').setDebug(DEBUG)
-        k_line = pp.Keyword('line').setDebug(DEBUG)
-        k_log = pp.Keyword('log').setDebug(DEBUG)
-        k_lt = pp.Keyword('lt').setDebug(DEBUG)
-        k_permit= pp.Keyword('permit').setDebug(DEBUG)
-        k_range = pp.Keyword('range').setDebug(DEBUG)
-        k_standard = pp.Keyword('standard').setDebug(DEBUG)
-        k_tcp = pp.Keyword('tcp').setDebug(DEBUG)
-        k_udp = pp.Keyword('udp').setDebug(DEBUG)
-        k_inactive = pp.Keyword('inactive').setDebug(DEBUG)
-        k_disable = pp.Keyword('disable').setDebug(DEBUG)
-        k_default = pp.Keyword('default').setDebug(DEBUG)
-        k_object = pp.Keyword('object').setDebug(DEBUG)
-        k_object_group = pp.Keyword('object-group').setDebug(DEBUG)
-        k_time_range = pp.Keyword('time-range').setDebug(DEBUG)
+        k_access_list = pp.Keyword('access-list').setName('k_access_list').setDebug(DEBUG)
+        k_any4 = pp.Keyword('any4').setName('k_any4').setDebug(DEBUG)
+        k_any6 = pp.Keyword('any6').setName('k_any6').setDebug(DEBUG)
+        k_any = pp.Keyword('any').setName('k_any').setDebug(DEBUG)
+        k_deny = pp.Keyword('deny').setName('k_deny').setDebug(DEBUG)
+        k_eq = pp.Keyword('eq').setName('k_eq').setDebug(DEBUG)
+        k_extended = pp.Keyword('extended').setName('k_extended').setDebug(DEBUG)
+        k_gt = pp.Keyword('gt').setName('k_gt').setDebug(DEBUG)
+        k_hitcnt = pp.Keyword('hitcnt').setName('k_hitcnt').setDebug(DEBUG)
+        k_host = pp.Keyword('host').setName('k_host').setDebug(DEBUG)
+        k_icmp = pp.Keyword('icmp').setName('k_icmp').setDebug(DEBUG)
+        k_interval = pp.Keyword('k_interval').setName('').setDebug(DEBUG)
+        k_ip = pp.Keyword('ip').setName('k_ip').setDebug(DEBUG)
+        k_line = pp.Keyword('line').setName('k_line').setDebug(DEBUG)
+        k_log = pp.Keyword('log').setName('k_log').setDebug(DEBUG)
+        k_lt = pp.Keyword('lt').setName('k_lt').setDebug(DEBUG)
+        k_permit= pp.Keyword('permit').setName('k_permit').setDebug(DEBUG)
+        k_range = pp.Keyword('range').setName('k_range').setDebug(DEBUG)
+        k_standard = pp.Keyword('standard').setName('k_standard').setDebug(DEBUG)
+        k_tcp = pp.Keyword('tcp').setName('k_tcp').setDebug(DEBUG)
+        k_udp = pp.Keyword('udp').setName('k_udp').setDebug(DEBUG)
+        k_inactive = pp.Keyword('inactive').setName('k_inactive').setDebug(DEBUG)
+        k_disable = pp.Keyword('disable').setName('k_disable').setDebug(DEBUG)
+        k_default = pp.Keyword('default').setName('k_default').setDebug(DEBUG)
+        k_object = pp.Keyword('object').setName('k_object').setDebug(DEBUG)
+        k_object_group = pp.Keyword('object-group').setName('k_object_group').setDebug(DEBUG)
+        k_time_range = pp.Keyword('time-range').setName('k_time_range').setDebug(DEBUG)
 
 
         # Literals
         #
-        l_close_bracket = pp.Literal(')').setDebug(DEBUG)
-        l_open_bracket = pp.Literal('(').setDebug(DEBUG)
-        l_dot = pp.Literal('.').setDebug(DEBUG)
-        l_equal = pp.Literal('=').setDebug(DEBUG)
+        l_close_bracket = pp.Literal(')').setName('l_close_bracket').setDebug(DEBUG)
+        l_open_bracket = pp.Literal('(').setName('l_open_bracket').setDebug(DEBUG)
+        l_dot = pp.Literal('.').setName('l_dot').setDebug(DEBUG)
+        l_equal = pp.Literal('=').setName('l_equal').setDebug(DEBUG)
 
-    
+
         # Tokens
         #
-        t_access_list_name = pp.Word(pp.alphanums+'-'+'_').setResultsName('aclname').setDebug(DEBUG)
-        t_access_list_type = (k_standard|k_extended).setResultsName('type').setDebug(DEBUG)
-        t_action = (k_permit|k_deny).setResultsName('action').setDebug(DEBUG)
-        t_comparison = (k_eq|k_gt|k_lt).setDebug(DEBUG)
-        t_hash = pp.Word(pp.alphanums).setResultsName('hash').setDebug(DEBUG)
-        t_hitcnt_count = pp.Word(pp.nums).setResultsName('hitcnt').setDebug(DEBUG)
-        t_octet = pp.Word(pp.nums, max=3).setDebug(DEBUG)
-        t_ipaddress = pp.Combine(t_octet + l_dot + t_octet + l_dot + t_octet + l_dot + t_octet)
-        t_line_number = pp.Word(pp.nums).setResultsName('linenumber').setDebug(DEBUG)
-        t_loginterval = pp.Word(pp.nums).setResultsName('loginterval').setDebug(DEBUG)
-        t_loglevel = pp.Word(pp.alphas).setResultsName('loglevel').setDebug(DEBUG)
-        t_port = pp.Word(pp.alphanums + '-').setDebug(DEBUG)
-        # Dynamically generate all possible IPv4 netmasks
-        t_netmask = pp.Or([str(ipaddress.IPv4Network('10.0.0.0/{}'.format(m), strict=False).netmask) for m in range(0, 33)])
-        t_inactive = l_open_bracket + k_inactive + l_close_bracket
-        t_object_name = pp.Word(pp.alphanums + '_')
-        t_time_range_name = pp.Word(pp.alphanums)
+        t_access_list_name = pp.Word(pp.alphanums+'-'+'_').setResultsName('aclname').setName('t_access_list_name').setDebug(DEBUG)
+        t_access_list_type = pp.MatchFirst([k_standard,k_extended]).setResultsName('type').setName('t_access_list_type').setDebug(DEBUG)
+        t_action = pp.MatchFirst([k_permit,k_deny]).setResultsName('action').setName('t_action').setDebug(DEBUG)
+        t_comparison = pp.MatchFirst([k_eq,k_gt,k_lt]).setName('t_comparison').setDebug(DEBUG)
+        # some comparisons are missing
+        t_hash = pp.Word(pp.alphanums).setName('t_hash').setDebug(DEBUG)
+        t_hitcnt_count = pp.Word(pp.nums).setResultsName('hitcnt').setName('t_hitcnt_count').setParseAction(lambda t: int(t[0])).setDebug(DEBUG)
+        t_octet = pp.Word(pp.nums, max=3).setName('t_octet').setDebug(DEBUG)
+        # TODO: Use pyparsing's inbuilt IPv4 address
+        t_ipaddress = pp.Combine(t_octet + l_dot + t_octet + l_dot + t_octet + l_dot + t_octet).setName('t_ipaddress').setDebug(DEBUG)
+        t_netmask = pp.Combine(t_octet + l_dot + t_octet + l_dot + t_octet + l_dot + t_octet).setName('t_netmask').setDebug(DEBUG)
+        t_line_number = pp.Word(pp.nums).setResultsName('linenumber').setName('t_line_number').setParseAction(lambda t: int(t[0])).setDebug(DEBUG)
+        t_loginterval = pp.Word(pp.nums).setResultsName('loginterval').setName('t_loginterval').setDebug(DEBUG)
+        t_loglevel = pp.Word(pp.alphas).setResultsName('loglevel').setName('t_loglevel').setDebug(DEBUG)
+        t_port = pp.Word(pp.alphanums + '-').setName('t_port').setDebug(DEBUG)
+        t_object_name = pp.Word(pp.alphanums + '_').setName('t_object_name').setDebug(DEBUG)
+        t_time_range_name = pp.Word(pp.alphanums).setName('t_time_range_name').setDebug(DEBUG)
 
 
         # Objects and object groups
         #
-        c_object = k_object + t_object_name
-        c_object_group = k_object_group + t_object_name
+        c_object = (k_object + t_object_name).setName('c_object').setDebug(DEBUG)
+        c_object_group = (k_object_group + t_object_name).setName('c_object_group').setDebug(DEBUG)
 
         # Protocol
         #
-        c_proto = (k_ip | k_icmp | k_tcp | k_udp | c_object | c_object_group).setResultsName('protocol')
+        c_proto = pp.MatchFirst([k_ip , k_icmp , k_tcp , k_udp , c_object , c_object_group]).setName('c_proto').setParseAction(lambda t: t[0]).setDebug(DEBUG)
 
         # Addresses
         #
-        c_address_host = k_host + t_ipaddress
-        c_address_ipv4 = t_ipaddress + t_netmask
-        c_address_any = k_any | k_any4 | k_any6
-        c_address_range = k_range + t_ipaddress + t_ipaddress
-        c_address_object = k_object + t_object_name
+        c_address_host = (k_host + t_ipaddress).setName('c_address_host').setDebug(DEBUG)
+        c_address_ipv4 = (t_ipaddress + t_netmask).setName('c_address_ipv4').setDebug(DEBUG)
+        c_address_any = pp.MatchFirst([k_any , k_any4 , k_any6]).setName('c_address_any').setDebug(DEBUG)
+        c_address_range = (k_range + t_ipaddress + t_ipaddress).setName('c_address_range').setDebug(DEBUG)
+        c_address_object = (k_object + t_object_name).setName('c_address_object').setDebug(DEBUG)
 
         # Source and Destination Address
         #
-        c_source = (c_address_host | c_address_ipv4 | c_address_any | c_address_range | c_address_object).setResultsName('src')
-        c_destination = (c_address_host | c_address_ipv4 | c_address_any | c_address_range | c_address_object).setResultsName('dest')
+        c_source = pp.MatchFirst([c_address_host , c_address_ipv4 , c_address_any , c_address_range , c_address_object]).setResultsName('src').setName('c_source').setParseAction(_address_action).setDebug(DEBUG)
+        c_destination = pp.MatchFirst([c_address_host , c_address_ipv4 , c_address_any , c_address_range , c_address_object]).setResultsName('dest').setName('c_destination').setParseAction(_address_action).setDebug(DEBUG)
 
         # Ports
         #
-        c_port_comparison = t_comparison + t_port
-        c_port_object = k_object + t_object_name
+        c_port_comparison = (t_comparison + t_port).setName('c_port_comparison').setDebug(DEBUG)
+        c_port_object = (k_object + t_object_name).setName('c_port_object').setDebug(DEBUG)
+        c_port_range = (k_range + t_port + t_port).setName('c_port_range').setDebug(DEBUG)
 
         # Source and Destination Ports
         #
-        c_source_port = c_port_comparison | c_port_object
-        c_destination_port = c_port_comparison | c_port_object
+        c_source_port = pp.MatchFirst([c_port_comparison, c_port_object, c_port_range]).setName('c_source_port').setParseAction(_port_action).setDebug(DEBUG)
+        c_destination_port = pp.MatchFirst([c_port_comparison, c_port_object, c_port_range]).setName('c_destination_port').setParseAction(_port_action).setDebug(DEBUG)
+
 
 
         # Logging
         #
-        c_logging = k_log + pp.Optional(t_loglevel) + (pp.Optional(k_interval + t_loginterval) | k_disable | k_default)
+        c_logging = (k_log + pp.Optional(t_loglevel) + pp.MatchFirst([pp.Optional(k_interval + t_loginterval) , k_disable , k_default])).setName('c_logging').setDebug(DEBUG)
 
         # Activation
         #
-        c_activation = k_inactive | (k_time_range + t_time_range_name)
+        c_activation = pp.MatchFirst([k_inactive , (k_time_range + t_time_range_name)]).setName('c_activation').setDebug(DEBUG)
+        c_inactive = (l_open_bracket + k_inactive + l_close_bracket).setName('c_inactive').setDebug(DEBUG)
+        #pp.MatchFirst([k_inactive , (k_time_range + t_time_range_name)]).setName('c_activation').setDebug(DEBUG)
+
+        # Hit count
+        #
+        c_hitcnt = l_open_bracket + k_hitcnt + l_equal + t_hitcnt_count + l_close_bracket
+
 
         # Parser
         #
@@ -127,20 +304,27 @@ class Parser():
                       c_source.setResultsName('source') + \
                       pp.Optional(c_source_port.setResultsName('source_port')) + \
                       pp.Optional(c_destination.setResultsName('destination')) + \
-                      pp.Optional(c_destination.setResultsName('destination_port')) + \
+                      pp.Optional(c_destination_port.setResultsName('destination_port')) + \
                       pp.Optional(c_logging.setResultsName('logging')) + \
-                      pp.Optional(c_activation.setResultsName('activation'))
+                      pp.Optional(c_activation.setResultsName('activation')) + \
+                      pp.Optional(c_hitcnt) + \
+                      pp.Optional(c_inactive) + \
+                      t_hash.setResultsName('hash')
 
+    def parse(self, fp):
 
-    def parse(self, config):
-
-        lines = [line.strip() for line in config.split('\n')]
+        #lines = [line.rstrip() for line in config.split('\n')]
         data = []
 
-        for line in lines:
+        for line in fp:
+            line = line.rstrip()
 
+            # TODO: Add these to the parser
             # Skip some lines 
-            if ';' in line:
+            if not line:
+                # Empty lines.
+                continue
+            elif ';' in line:
                 # access-list Other-RP-Groups; 2 elements; name hash: 0x937d0a07
                 continue
             elif 'object-group' in line:
@@ -156,24 +340,26 @@ class Parser():
 
             try:
                 m = self.parser.parseString(line)
+                pprint.pprint(m.asDict())
                 data.append(m.asDict())
-            except pp.ParseException:
-                print(line)
+            except Exception:
+                print(line, file=sys.stderr)
                 raise
 
         return data
 
 
+
 def main():
+    # TODO: Command line arguments: input file and output format (pprint, json, yaml)
 
     parser = Parser()
 
     with open(sys.argv[1], 'rt') as fp:
-        config = fp.read()
-    data = parser.parse(config)
+        data = parser.parse(fp)
 
-    import pprint
-    pprint.pprint(data)
+#    import pprint
+#    pprint.pprint(data)
 
 
 if __name__ == '__main__':
