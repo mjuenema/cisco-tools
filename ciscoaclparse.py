@@ -113,30 +113,30 @@ pp.ParserElement.enablePackrat()
 #        return "IPv4Range('{}','{}')".format(self.start, self.end)
 
 
-def _address_action(t): 
-    """Parse action to normalise address tokens.
-
-         ['host', '172.16.37.207']
-         ['172.19.130.0', '255.255.255.0']
-         ['range', '10.1.2.21', '10.1.2.23']
-         ['any']
-         ['any4']
-         ['object','NAME']
-
-    """
-
-    if t[0] == 'host':
-        return {'type': 'host', 'host': t[1]}
-    elif t[0] == 'range':
-        return {'type': 'range', 'start': t[1], 'end': t[2]}
-    elif t[0] == 'any':
-        return {'type': 'network', 'network': '0.0.0.0/0'}
-    elif t[0] == 'any4':
-        return {'type': 'network', 'network': '0.0.0.0/0'}
-    elif t[0] == 'object':
-        return {'type': 'object', 'object': t[1]}
-    else:
-        return {'type': 'network', 'network': ipaddress.IPv4Network('{}/{}'.format(t[0], t[1])).exploded}
+#def _address_action(t): 
+#    """Parse action to normalise address tokens.
+#
+#         ['host', '172.16.37.207']
+#         ['172.19.130.0', '255.255.255.0']
+#         ['range', '10.1.2.21', '10.1.2.23']
+#         ['any']
+#         ['any4']
+#         ['object','NAME']
+#
+#    """
+#
+#    if t[0] == 'host':
+#        return {'type': 'host', 'host': t[1]}
+#    elif t[0] == 'range':
+#        return {'type': 'range', 'start': t[1], 'end': t[2]}
+#    elif t[0] == 'any':
+#        return {'type': 'network', 'network': '0.0.0.0/0'}
+#    elif t[0] == 'any4':
+#        return {'type': 'network', 'network': '0.0.0.0/0'}
+#    elif t[0] == 'object':
+#        return {'type': 'object', 'object': t[1]}
+#    else:
+#        return {'type': 'network', 'network': ipaddress.IPv4Network('{}/{}'.format(t[0], t[1])).exploded}
 
 #def _protocol_action(t):
 #    """Convert protocol list to string."""
@@ -147,38 +147,76 @@ def _address_action(t):
 #_hitcnt_action = _line_number_action = _convert_to_int
 
 
-def convert(value, fn=int, efn=str):
-    try:
-        return fn(value)
-    except Exception:
-        if efn:
-            return efn(value)
-        else:
-            raise
+#def convert(value, fn=int, efn=str):
+#    try:
+#        return fn(value)
+#    except Exception:
+#        if efn:
+#            return efn(value)
+#        else:
+#            raise
 
 
-def _port_action(t):
-    # ['eq', 'bootps']
-    # ['object', 'Obj_ConnectEast_OMCS']
+#def _port_action(t):
+#    # ['eq', 'bootps']
+#    # ['object', 'Obj_ConnectEast_OMCS']
+#
+#    if t[0] == 'eq':
+#        return {'type': 'port', 'port': convert(t[1], socket.getservbyname, int)}
+#    elif t[0] == 'gt':
+#        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int)+1, 'end': 65535}
+#    elif t[0] == 'lt':
+#        return {'type': 'range', 'start': 1, 'end': convert(t[1], socket.getservbyname, int)-1}
+#    elif t[0] == 'neq':
+#        raise NotImplemmentedError(str(t))
+#    elif t[0] == 'range':
+#        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int), 'end': convert(t[2], socket.getservbyname, int)}
+#    elif t[0] == 'object':
+#        return {'type': 'object', 'object': convert(t[1], socket.getservbyname, int)}
+#    else:
+#        raise NotImplemmentedError(str(t))
 
-    if t[0] == 'eq':
-        return {'type': 'port', 'port': convert(t[1], socket.getservbyname, int)}
-    elif t[0] == 'gt':
-        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int)+1, 'end': 65535}
-    elif t[0] == 'lt':
-        return {'type': 'range', 'start': 1, 'end': convert(t[1], socket.getservbyname, int)-1}
-    elif t[0] == 'neq':
-        raise NotImplemmentedError(str(t))
-    elif t[0] == 'range':
-        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int), 'end': convert(t[2], socket.getservbyname, int)}
-    elif t[0] == 'object':
-        return {'type': 'object', 'object': convert(t[1], socket.getservbyname, int)}
-    else:
-        raise NotImplemmentedError(str(t))
 
+class BaseParser(object):
 
-class Parser():
+    def name(self, tokens):
+        return None
 
+    def type(self, tokens):
+        return None
+
+    def action(self, tokens):
+        return None
+
+    def protocol(self, tokens):
+        return None
+
+    def source(self, tokens):
+        return None
+
+    def source_port(self, tokens):
+        return None
+
+    def destination(self, tokens):
+        return None
+
+    def destination_port(self, tokens):
+        return None
+
+    def logging(self, tokens):
+        return None
+
+    def activation(self, tokens):
+        return None
+
+    def hash(self, tokens):
+        return None
+
+    def linenumber(self, tokens):
+        return None
+
+    def hitcnt(self, tokens):
+        return None
 
     def __init__(self):
 
@@ -223,23 +261,28 @@ class Parser():
 
         # Tokens
         #
-        t_access_list_name = pp.Word(pp.alphanums+'-'+'_').setResultsName('aclname').setName('t_access_list_name').setDebug(DEBUG)
-        t_access_list_type = pp.MatchFirst([k_standard,k_extended]).setResultsName('type').setName('t_access_list_type').setDebug(DEBUG)
-        t_action = pp.MatchFirst([k_permit,k_deny]).setResultsName('action').setName('t_action').setDebug(DEBUG)
+        t_access_list_name = pp.Word(pp.alphanums+'-'+'_').setName('t_access_list_name').setParseAction(self.name).setDebug(DEBUG)
+        t_access_list_type = pp.MatchFirst([k_standard,k_extended]).setName('t_access_list_type').setDebug(DEBUG)
+        t_action = pp.MatchFirst([k_permit,k_deny]).setName('t_action').setDebug(DEBUG)
         t_comparison = pp.MatchFirst([k_eq,k_gt,k_lt]).setName('t_comparison').setDebug(DEBUG)
         # some comparisons are missing
         t_hash = pp.Word(pp.alphanums).setName('t_hash').setDebug(DEBUG)
-        t_hitcnt_count = pp.Word(pp.nums).setResultsName('hitcnt').setName('t_hitcnt_count').setParseAction(lambda t: int(t[0])).setDebug(DEBUG)
+        t_hitcnt_count = pp.Word(pp.nums).setName('t_hitcnt_count').setResultsName('hitcnt').setParseAction(self.hitcnt).setDebug(DEBUG)
         t_octet = pp.Word(pp.nums, max=3).setName('t_octet').setDebug(DEBUG)
         # TODO: Use pyparsing's inbuilt IPv4 address
         t_ipaddress = pp.Combine(t_octet + l_dot + t_octet + l_dot + t_octet + l_dot + t_octet).setName('t_ipaddress').setDebug(DEBUG)
         t_netmask = pp.Combine(t_octet + l_dot + t_octet + l_dot + t_octet + l_dot + t_octet).setName('t_netmask').setDebug(DEBUG)
-        t_line_number = pp.Word(pp.nums).setResultsName('linenumber').setName('t_line_number').setParseAction(lambda t: int(t[0])).setDebug(DEBUG)
-        t_loginterval = pp.Word(pp.nums).setResultsName('loginterval').setName('t_loginterval').setDebug(DEBUG)
-        t_loglevel = pp.Word(pp.alphas).setResultsName('loglevel').setName('t_loglevel').setDebug(DEBUG)
+        t_line_number = pp.Word(pp.nums).setName('t_line_number').setParseAction(self.linenumber).setDebug(DEBUG)
+        t_loginterval = pp.Word(pp.nums).setName('t_loginterval').setDebug(DEBUG)
+        t_loglevel = pp.Word(pp.alphas).setName('t_loglevel').setDebug(DEBUG)
         t_port = pp.Word(pp.alphanums + '-').setName('t_port').setDebug(DEBUG)
         t_object_name = pp.Word(pp.alphanums + '_').setName('t_object_name').setDebug(DEBUG)
         t_time_range_name = pp.Word(pp.alphanums).setName('t_time_range_name').setDebug(DEBUG)
+
+
+        # Line and number
+        #
+        c_line = k_line + t_line_number.setResultsName('line')
 
 
         # Objects and object groups
@@ -249,7 +292,7 @@ class Parser():
 
         # Protocol
         #
-        c_proto = pp.MatchFirst([k_ip , k_icmp , k_tcp , k_udp , c_object , c_object_group]).setName('c_proto').setParseAction(lambda t: t[0]).setDebug(DEBUG)
+        c_proto = pp.MatchFirst([k_ip , k_icmp , k_tcp , k_udp , c_object , c_object_group]).setName('c_proto').setDebug(DEBUG)
 
         # Addresses
         #
@@ -261,8 +304,8 @@ class Parser():
 
         # Source and Destination Address
         #
-        c_source = pp.MatchFirst([c_address_host , c_address_ipv4 , c_address_any , c_address_range , c_address_object]).setResultsName('src').setName('c_source').setParseAction(_address_action).setDebug(DEBUG)
-        c_destination = pp.MatchFirst([c_address_host , c_address_ipv4 , c_address_any , c_address_range , c_address_object]).setResultsName('dest').setName('c_destination').setParseAction(_address_action).setDebug(DEBUG)
+        c_source = pp.MatchFirst([c_address_host , c_address_ipv4 , c_address_any , c_address_range , c_address_object]).setName('c_source').setDebug(DEBUG)
+        c_destination = pp.MatchFirst([c_address_host , c_address_ipv4 , c_address_any , c_address_range , c_address_object]).setName('c_destination').setParseAction(self.destination).setDebug(DEBUG)
 
         # Ports
         #
@@ -272,8 +315,8 @@ class Parser():
 
         # Source and Destination Ports
         #
-        c_source_port = pp.MatchFirst([c_port_comparison, c_port_object, c_port_range]).setName('c_source_port').setParseAction(_port_action).setDebug(DEBUG)
-        c_destination_port = pp.MatchFirst([c_port_comparison, c_port_object, c_port_range]).setName('c_destination_port').setParseAction(_port_action).setDebug(DEBUG)
+        c_source_port = pp.MatchFirst([c_port_comparison, c_port_object, c_port_range]).setName('c_source_port').setDebug(DEBUG)
+        c_destination_port = pp.MatchFirst([c_port_comparison, c_port_object, c_port_range]).setName('c_destination_port').setParseAction(self.destination_port).setDebug(DEBUG)
 
 
 
@@ -296,24 +339,22 @@ class Parser():
         #
         self.parser = k_access_list + \
                       t_access_list_name.setResultsName('name') + \
-                      k_line + \
-                      t_line_number.setResultsName('line') + \
+                      c_line + \
                       t_access_list_type.setResultsName('type') + \
                       t_action.setResultsName('action') + \
-                      c_proto.setResultsName('protocol') + \
-                      c_source.setResultsName('source') + \
-                      pp.Optional(c_source_port.setResultsName('source_port')) + \
+                      c_proto.setParseAction(self.protocol).setResultsName('protocol') + \
+                      c_source.setParseAction(self.source).setResultsName('source') + \
+                      pp.Optional(c_source_port.setParseAction(self.source_port).setResultsName('source_port')) + \
                       pp.Optional(c_destination.setResultsName('destination')) + \
                       pp.Optional(c_destination_port.setResultsName('destination_port')) + \
                       pp.Optional(c_logging.setResultsName('logging')) + \
                       pp.Optional(c_activation.setResultsName('activation')) + \
                       pp.Optional(c_hitcnt) + \
-                      pp.Optional(c_inactive) + \
+                      pp.Optional(c_inactive).setResultsName('inactive') + \
                       t_hash.setResultsName('hash')
 
     def parse(self, fp):
 
-        #lines = [line.rstrip() for line in config.split('\n')]
         data = []
 
         for line in fp:
@@ -340,7 +381,8 @@ class Parser():
 
             try:
                 m = self.parser.parseString(line)
-                pprint.pprint(m.asDict())
+                print(line)
+                print(m.asDict())
                 data.append(m.asDict())
             except Exception:
                 print(line, file=sys.stderr)
@@ -349,18 +391,150 @@ class Parser():
         return data
 
 
+class Parser(BaseParser):
+
+    def linenumber(self, tokens):
+        return int(tokens[0])
+
+    def hitcnt(self, tokens):
+        return int(tokens[0])
+
+    def protocol(self, tokens):
+        return ' '.join(tokens)
+
+    def source(self, tokens):
+        return ' '.join(tokens)
+
+    def destination(self, tokens):
+        return ' '.join(tokens)
+
+
+class IpAddressParser(Parser):
+    """Parser converts source and destination addresses into objects.
+
+       All returned address objects support the same operators to make
+       it easier to filter the results later:
+
+         x == y
+         x != y
+         x < y
+         x <= y
+         x > y
+         x >= y
+         x in y
+
+    """
+
+    class IPv4Range(object):
+        def __init__(self, start, end):
+            self.start = ipaddress.ip_address(start)
+            self.end = ipaddress.ip_address(end)
+
+        def __repr__(self):
+            return "IPv4Range('{}-{}')".format(self.start, self.end)
+
+
+    class Object(str):
+        def __init__(self, name):
+            super().__init__(name)
+
+
+    class IPv4Network(ipaddress.IPv4Network):
+        def __init__(self, network, netmask):
+            super().__init__((network, netmask))
+
+
+    class IPv4Address(ipaddress.IPv4Address):
+        def __init__(self, address):
+            super().__init__(address)
+
+#            if tokens[0] == 'host':
+#                self.address = ipaddress.ip_network(tokens[1])
+#                self.end = None
+#            elif tokens[0] == 'range':
+#                self.address = ipaddress.ip_network(tokens[1])
+#                self.end = ipaddress.ip_address(tokens[2])
+#            elif tokens[0] == 'any':
+#                self.address = ipaddress.ip_network('0.0.0.0/0')
+#                self.end = None
+#            elif tokens[0] == 'any4':
+#                self.address = ipaddress.ip_network('0.0.0.0/0')
+#                self.end = None
+#            elif tokens[0] == 'object':
+#                self.address = tokens[1]
+#            else:
+#                self.address = ipaddress.ip_network('{}/{}'.format(tokens[0], tokens[1]))
+#                self.end = None
+#
+#        def __repr__(self):
+#            if self.end:
+#                return '{}-{}'.format(self.address, self.end)
+#            else:
+#                return '{}'.format(self.address)
+#
+#        def __eq__(self, other):
+#            if self.end:
+#                return False
+#            else:
+#                return self.address == ipaddress.ip_network(other)
+#
+#        def __lt__(self, other):
+#            if self.end:
+#                return self.end < ipaddress.ip_network(other)
+#            else:
+#                return self.address < ipaddress.ip_network(other)
+#
+#        def __le__(self, other):
+#            if self.end:
+#                return self.end <= ipaddress.ip_network(other)
+#            else:
+#                return self.address <= ipaddress.ip_network(other)
+#
+#        def __gt__(self, other):
+#            return self.address > ipaddress.ip_network(other)
+#
+#        def __ge__(self, other):
+#            return self.address >= ipaddress.ip_network(other)
+#
+#        def __contains__(self, other):
+#            if self.end:
+#                return self.start <= ipaddress.ip_network(other) <= self.end
+#            else:
+#                return ipaddress.ip_network(other) in self.address
+
+    def source(self, tokens):
+        if tokens[0] == 'range':
+            return self.IPv4Range(start=tokens[1], end=tokens[2])
+        elif tokens[0] == 'object':
+            return self.Object(name=tokens[1])
+        elif tokens[0] == 'host':
+            return self.IPv4Address(address=tokens[1])
+        elif tokens[0] == 'any' or tokens[0] == 'any4':
+            return self.IPv4Network(network='0.0.0.0', netmask='0.0.0.0')
+        else:
+            return self.IPv4Network(network=tokens[1], netmask=tokens[2])
+
+    destination = source
+#        return source(tokens)
+
+
+class PortParser(Parser):
+    """Parser that converts source and destination ports into objects."""
+
+    class Port(object):
+        def __init__(self, tokens):
+            pass
+
+
+
 
 def main():
     # TODO: Command line arguments: input file and output format (pprint, json, yaml)
 
-    parser = Parser()
+    parser = IpAddressParser()
 
     with open(sys.argv[1], 'rt') as fp:
         data = parser.parse(fp)
-
-#    import pprint
-#    pprint.pprint(data)
-
 
 if __name__ == '__main__':
     main()
