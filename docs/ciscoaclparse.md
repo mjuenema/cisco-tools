@@ -109,10 +109,10 @@ The ``source_port`` and ``destination_port`` attributes are based on Python inte
 assert 80 == rule.destination_port
 
 # Text comparison
-assert "http" == destination_rule.port
+assert "http" == rule.destination_port
 
 # Check whether a port is contained in a range of ports
-assert "http" in destination_rule.port
+assert "http" in rule.destination_port
 ```
 
 ## Aliases
