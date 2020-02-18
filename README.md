@@ -2,7 +2,7 @@
 Various scripts for working with Cisco network devices
 
 * **ciscoconfdict** converts a Cisco IOS configuration into nested Python dictionaries.
-* [ciscoaclparse](docs/ciscoaclparse.md) parses the output of the ``show access-lists`` command into nested Python dictionaries.
+* [ciscoaclparse](docs/ciscoaclparse.md) parses the output of the ``show access-lists`` command into a Python list.
 * **ciscoconfexit** inserts ``exit`` statements into a Cisco configuration so one can copy-and-paste it.
 
 
