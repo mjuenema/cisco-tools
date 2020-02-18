@@ -24,6 +24,9 @@ One possible use case is to filter the list of rules.
 http_rules = [rule for rule in rules where rule.destination_port == 80]
 ```
 
+*ciscoaclparse* depends on [pyparsing](https://pypi.org/project/pyparsing/) and 
+[netaddr](https://pypi.org/project/netaddr/).
+
 ## Structure of Cisco Access Control List entries
 
 While there are differences between the different Cisco platforms (IOS, IOS-XR, ASA, ...) and software releases, the general
@@ -86,9 +89,13 @@ the future addition of custom methods if necessary.
 
 The [netaddr.IPSet](https://netaddr.readthedocs.io/en/latest/api.html#ip-sets) is used for the ``source`` and
 ``destination`` attributes. It conveniently accomodates all the different IP address and network syntaxes 
-Cisco Access Control Lists may contain.
+Cisco Access Control Lists may contain, namely hosts, networks and ranges.
 
-TODO: Explain operations.
+```
+access-list ... host 192.168.1.1 ...
+access-list ... 192.168.1.0 255.255.255.0 ...
+access-list ... range 192.168.1.10 192.168.1.19 ...
+```
 
 Check [netaddr.IPSet](https://netaddr.readthedocs.io/en/latest/api.html#ip-sets) for the full set of supported operators.
 
