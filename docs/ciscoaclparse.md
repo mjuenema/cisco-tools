@@ -3,7 +3,26 @@
 **THIS IS CURRENTLY A DESIGN DOCUMENT AND NOT YET IMPLEMENTED**
 
 *ciscoaclparse* is a library for parsing the output of the Cisco ``show access-list`` command into a list of Python
-objects.
+objects. The module provides a single ``parse()`` function that accepts a file-like object. The return value is a list of 
+``ciscoaclparse.Rule`` instances (see below for details).
+
+Example:
+
+```python
+import ciscoaclparse
+
+with open('show-access-list.txt', 'rt') as fp:
+    rules = ciscoaclparse.parse(fp)
+    
+assert isinstance(rules, list)
+assert isinstance(rules[0], ciscoaclparse.Rule)
+```
+
+One possible use case is to filter the list of rules.
+
+```python
+http_rules = [rule for rule in rules where rule.destination_port == 80]
+```
 
 ## Structure of Cisco Access Control List entries
 
@@ -102,5 +121,9 @@ For convenience some attributes can also be referred to by an alias.
 | ``destination_port`` | ``dport``, ``port`` |
 | ``hits`` | ``hitcnt`` |
 | ``remark`` | ``comment`` |
+
+
+
+
 
 Markus Juenemann, 18-Feb-2020
