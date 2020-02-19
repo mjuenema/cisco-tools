@@ -22,6 +22,7 @@ DEBUG = False
 import sys
 import socket
 import ipaddress
+import netaddr
 import pprint
 
 # Import different versions on PyParsing depending
@@ -35,149 +36,98 @@ pp.ParserElement.enablePackrat()
 ## Names to number tables for TCP/UDP ports and protocols like (icmp, IP, TCP, UPD).
 ## Only names that cannot be resolved through `getservbyname()` listed here.
 ## https://community.cisco.com/t5/firewalls/cisco-asa-acl-built-in-port-name-to-number-mapping/td-p/1709769
-#NAME2NUMBER = {
-#  'aol': 5120,
-#  'bgp': 179,
-#  'chargen': 19,
-#  'cifs': 3020,
-#  'citrix-ica': 1494,
-#  'cmd': 514,
-#  'ctiqbe': 2748,
-#  'daytime': 13,
-#  'discard': 9,
-#  'domain': 53,
-#  'echo': 7,
-#  'exec': 512,
-#  'finger': 79,
-#  'ftp': 21,
-#  'ftp-data': 20,
-#  'gopher': 70,
-#  'h323': 1720,
-#  'hostname': 101,
-#  'http': 80,
-#  'https': 443,
-#  'ident': 113,
-#  'imap4': 143,
-#  'irc': 194,
-#  'kerberos': 88,
-#  'klogin': 543,
-#  'kshell': 544,
-#  'ldap': 389,
-#  'ldaps': 636,
-#  'login': 513,
-#  'lotusnotes': 1352,
-#  'lpd': 515,
-#  'netbios-ssn': 139,
-#  'nfs': 2049,
-#  'nntp': 119,
-#  'pcanywhere-data': 5631,
-#  'pim-auto-rp': 496,
-#  'pop2': 109,
-#  'pop3': 110,
-#  'pptp': 1723,
-#  'rsh': 514,
-#  'rtsp': 554,
-#  'sip': 5060,
-#  'smtp': 25,
-#  'sqlnet': 1522,
-#  'ssh': 22,
-#  'sunrpc': 111,
-#  'tacacs': 49,
-#  'talk': 517,
-#  'telnet': 23,
-#  'uucp': 540,
-#  'whois': 43,
-#  'www': 80
-#}
 
 
-#def _name_to_number(name):
-#    try:
-#        return int(name)
-#    except ValueError:
-#        # Not an integer
-#        return socket.getservbyname(name)
+
+class Rule:
+    name = None
+    line = None
+    type = None
+    action = None
+    protocol = None
+    source = None
+    destination = None
+    source_port = None
+    destination_port = None
+    hits = None
+    hash = None
+    remark = None
+
+    @property
+    def proto(self):
+        return self.protocol
+
+    @property
+    def src(self):
+        return self.source
+
+    @property
+    def dest(self):
+        return self.destination
+    dst = dest
+
+    @property
+    def sport(self):
+        return self.source_port
+
+    @property
+    def dport(self):
+        return self.destination_port
+    port = service = dport
+
+    @property
+    def hitcnt(self):
+        return self.hits
+
+    @property
+    def comment(self):
+        return self.comment
+
+class Name(str):
+    pass
+
+class Line(int):
+    pass
+
+class Type(str):
+    pass
+
+class Action(str):
+    pass
+
+class Protocol(str):
+    pass
+
+class _IPSet(netaddr.IPSet):
+    pass
+
+class Source(_IPSet):
+    pass
+
+class Destination(_IPSet):
+    pass
+
+class _Port(object):
+    pass
+
+class SourcePort(_Port):
+    pass
+
+class DestinationPort(_Port):
+    pass
+
+class Hits(int):
+    pass
+
+class Hash(str):
+    pass
+
+class Remark(str):
+    pass
 
 
-#class IPv4Range(object):
-#    def __init__(self, start, end):
-#        self.start = ipaddress.IPv4Address(start)
-#        self.end = ipaddress.IPv4Address(end)
-#
-#    def __contains__(self, other):
-#        return (other >= self.start) and (other <= self.end)
-#
-#    __eq__ = __contains__
-#
-#    def __repr__(self):
-#        return "IPv4Range('{}','{}')".format(self.start, self.end)
 
-
-#def _address_action(t): 
-#    """Parse action to normalise address tokens.
-#
-#         ['host', '172.16.37.207']
-#         ['172.19.130.0', '255.255.255.0']
-#         ['range', '10.1.2.21', '10.1.2.23']
-#         ['any']
-#         ['any4']
-#         ['object','NAME']
-#
-#    """
-#
-#    if t[0] == 'host':
-#        return {'type': 'host', 'host': t[1]}
-#    elif t[0] == 'range':
-#        return {'type': 'range', 'start': t[1], 'end': t[2]}
-#    elif t[0] == 'any':
-#        return {'type': 'network', 'network': '0.0.0.0/0'}
-#    elif t[0] == 'any4':
-#        return {'type': 'network', 'network': '0.0.0.0/0'}
-#    elif t[0] == 'object':
-#        return {'type': 'object', 'object': t[1]}
-#    else:
-#        return {'type': 'network', 'network': ipaddress.IPv4Network('{}/{}'.format(t[0], t[1])).exploded}
-
-#def _protocol_action(t):
-#    """Convert protocol list to string."""
-#    return t[0]
-
-#def _convert_to_int(t):
-#    return int(t[0])
-#_hitcnt_action = _line_number_action = _convert_to_int
-
-
-#def convert(value, fn=int, efn=str):
-#    try:
-#        return fn(value)
-#    except Exception:
-#        if efn:
-#            return efn(value)
-#        else:
-#            raise
-
-
-#def _port_action(t):
-#    # ['eq', 'bootps']
-#    # ['object', 'Obj_ConnectEast_OMCS']
-#
-#    if t[0] == 'eq':
-#        return {'type': 'port', 'port': convert(t[1], socket.getservbyname, int)}
-#    elif t[0] == 'gt':
-#        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int)+1, 'end': 65535}
-#    elif t[0] == 'lt':
-#        return {'type': 'range', 'start': 1, 'end': convert(t[1], socket.getservbyname, int)-1}
-#    elif t[0] == 'neq':
-#        raise NotImplemmentedError(str(t))
-#    elif t[0] == 'range':
-#        return {'type': 'range', 'start': convert(t[1], socket.getservbyname, int), 'end': convert(t[2], socket.getservbyname, int)}
-#    elif t[0] == 'object':
-#        return {'type': 'object', 'object': convert(t[1], socket.getservbyname, int)}
-#    else:
-#        raise NotImplemmentedError(str(t))
-
-
-class BaseParser(object):
+class Parser(object):
 
     def name(self, tokens):
         return None
